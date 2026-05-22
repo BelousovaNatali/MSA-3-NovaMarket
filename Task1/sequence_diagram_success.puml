@@ -1,0 +1,23 @@
+@startuml
+actor Покупатель
+participant "Сервис заказов" as Order
+participant "Сервис каталога" as Catalog
+participant "Сервис платежей" as Payment
+participant "Сервис доставки" as Delivery
+participant "Сервис уведомлений" as Notify
+
+Покупатель -> Order : Оформление заказа()
+Order -> Order : Создание заказа
+Order -> Catalog : OrderCreated
+Catalog -> Catalog : Резервирование товаров
+Catalog --> Order : ItemsReserved
+Order -> Payment : PaymentRequested
+Payment -> Payment : Списание средств
+Payment --> Order : PaymentSucceeded
+Order -> Order : Статус "Оплачен"
+Order -> Delivery : DeliveryRequested
+Delivery -> Delivery : Формирование заявки
+Delivery --> Order : DeliveryScheduled
+Order --> Notify : OrderConfirmed
+Notify --> Покупатель : Уведомление
+@enduml

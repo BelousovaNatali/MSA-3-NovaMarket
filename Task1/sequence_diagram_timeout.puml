@@ -1,0 +1,21 @@
+@startuml
+actor Покупатель
+participant "Сервис заказов" as Order
+participant "Сервис каталога" as Catalog
+participant "Сервис платежей" as Payment
+participant "Сервис уведомлений" as Notify
+
+Покупатель -> Order : Оформление заказа()
+Order -> Order : Создание заказа
+Order -> Catalog : OrderCreated
+Catalog -> Catalog : Резервирование товаров
+Catalog --> Order : ItemsReserved
+Order -> Payment : PaymentRequested
+... 30 минут ожидания ...
+Order -> Order : PaymentTimeout
+Order -> Catalog : ItemsReservationCanceled
+Catalog -> Catalog : Снятие резерва
+Order -> Order : Статус "Отменён по таймауту"
+Order --> Notify : OrderCancelled
+Notify --> Покупатель : Уведомление об истечении времени
+@enduml

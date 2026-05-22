@@ -1,0 +1,80 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Контейнерная диаграмма C2 — NovaMarket (с историей заказов)
+
+Person(buyer, "Покупатель", "Ищет товары, оформляет заказы, отслеживает доставку, просматривает историю заказов")
+Person(seller, "Продавец", "Получает уведомления о заказах, управляет товарами")
+
+System_Boundary(mvp, "NovaMarket MVP") {
+
+    Container(api_gateway, "API Gateway", "Маршрутизация запросов, аутентификация, rate limiting")
+
+    Container(catalog_service, "Сервис каталога", "Управление товарами, категориями, ценами. Резервирование и снятие резерва")
+
+    Container(order_service, "Сервис заказов", "Корзина, оформление заказа, статусы заказов, таймауты оплаты, история заказов")
+
+    Container(payment_service, "Сервис оплаты", "Интеграция с платёжным шлюзом, списание/возврат средств")
+
+    Container(delivery_service, "Сервис доставки", "Интеграция с логистическим провайдером, формирование заявок, трекинг")
+
+    Container(notification_service, "Сервис уведомлений", "Отправка уведомлений продавцам и покупателям")
+
+    Container(user_service, "Сервис пользователей", "Регистрация, аутентификация, профили, привязанные карты")
+
+    Container(kafka, "Apache Kafka", "Событийная шина")
+
+    ContainerDb(catalog_db, "БД каталога", "Товары, категории, цены, отзывы")
+    ContainerDb(order_db, "БД заказов (операционная)", "Хранилище заказов. Используется для записи и чтения текущих заказов")
+    ContainerDb(order_history_db, "БД истории заказов (аналитическая)", "Денормализованное хранилище для быстрого чтения истории заказов. Обновляется асинхронно через Kafka")
+    ContainerDb(user_db, "БД пользователей", "Покупатели, продавцы, привязанные карты")
+    ContainerDb(payment_db, "БД платежей", "Транзакции, списания, возвраты")
+    ContainerDb(delivery_db, "БД доставки", "Заявки, трек-номера, статусы")
+}
+
+System_Ext(payment_gateway, "Платёжный шлюз", "Списание/возврат средств")
+System_Ext(logistic_provider, "Логистический провайдер", "Доставка заказов, трекинг")
+
+Rel(buyer, api_gateway, "HTTPS", "Просмотр каталога, заказы, история")
+Rel(seller, api_gateway, "HTTPS", "Управление товарами, просмотр заказов")
+
+Rel(api_gateway, catalog_service, "REST", "/api/catalog")
+Rel(api_gateway, order_service, "REST", "/api/orders (запись и чтение)")
+Rel(api_gateway, user_service, "REST", "/api/users")
+
+Rel(catalog_service, catalog_db, "SQL")
+Rel(order_service, order_db, "SQL (запись)")
+Rel(order_service, order_history_db, "SQL (чтение истории)")
+Rel(user_service, user_db, "SQL")
+Rel(payment_service, payment_db, "SQL")
+Rel(delivery_service, delivery_db, "SQL")
+
+Rel(payment_service, payment_gateway, "HTTPS", "API платежей")
+Rel(delivery_service, logistic_provider, "HTTPS", "API доставки")
+
+Rel(order_service, kafka, "Публикует", "OrderCreated")
+Rel(kafka, catalog_service, "Читает", "OrderCreated")
+
+Rel(catalog_service, kafka, "Публикует", "ItemsReserved")
+Rel(kafka, payment_service, "Читает", "ItemsReserved")
+
+Rel(payment_service, kafka, "Публикует", "PaymentSucceeded, PaymentFailed")
+Rel(kafka, delivery_service, "Читает", "PaymentSucceeded")
+Rel(kafka, catalog_service, "Читает", "PaymentFailed")
+Rel(kafka, notification_service, "Читает", "PaymentSucceeded")
+
+Rel(catalog_service, kafka, "Публикует", "ItemsReservationCanceled")
+Rel(order_service, kafka, "Публикует", "PaymentTimeout")
+Rel(kafka, catalog_service, "Читает", "PaymentTimeout")
+Rel(kafka, notification_service, "Читает", "PaymentTimeout")
+
+Rel(delivery_service, kafka, "Публикует", "DeliveryScheduled, DeliveryStatusChanged")
+Rel(kafka, notification_service, "Читает", "DeliveryScheduled, DeliveryStatusChanged")
+
+Rel(order_service, kafka, "Публикует", "OrderCreated, OrderStatusChanged, OrderPaid, OrderCancelled")
+Rel(kafka, order_service, "Читает", "События заказов (self-consumption)")
+
+Rel(notification_service, seller, "Уведомления", "О новых заказах")
+Rel(notification_service, buyer, "Уведомления", "Статус заказа, трек-номер, чек")
+
+@enduml
